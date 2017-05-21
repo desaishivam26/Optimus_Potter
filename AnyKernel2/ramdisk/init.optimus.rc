@@ -3,11 +3,10 @@
 
 on property:sys.boot_completed=1
     # Disable some Wlan wakelocks
-    write /sys/module/wakeup/parameters/enable_wlan_rx_wake_ws 0
-    write /sys/module/wakeup/parameters/enable_wlan_ctrl_wake_ws 0
-    write /sys/module/wakeup/parameters/enable_wlan_wake_ws 0
+    write /sys/module/wakeup/parameters/enable_qcom_rx_wakelock_ws 0
+    write /sys/module/wakeup/parameters/enable_wlan_extscan_wl_ws 0
+    write /sys/module/wakeup/parameters/enable_wlan_ws 0
     write /sys/module/wakeup/parameters/enable_ipa_ws 0
-    write /sys/module/wakeup/parameters/enable_bluedroid_timer_ws 0
     write /sys/module/wakeup/parameters/enable_timerfd_ws 0
     write /sys/module/wakeup/parameters/enable_netlink_ws 0
 
