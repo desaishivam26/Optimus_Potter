@@ -52,12 +52,12 @@ echo "**** Time to zip up! ****"
 cd $ANY_KERNEL2_DIR/
 zip -r9 $FINAL_KERNEL_ZIP * -x README $FINAL_KERNEL_ZIP
 rm -rf /home/shivam/$FINAL_KERNEL_ZIP
-cp /home/shivam/optimus/Anykernel2/$FINAL_KERNEL_ZIP /home/shivam/$FINAL_KERNEL_ZIP
+cp /home/shivam/kernel-msm/AnyKernel2/$FINAL_KERNEL_ZIP /home/shivam/$FINAL_KERNEL_ZIP
 
 echo "**** Good Bye!! ****"
 cd $KERNEL_DIR
 rm -rf arch/arm/boot/dtb
 rm -rf $ANY_KERNEL2_DIR/$FINAL_KERNEL_ZIP
-rm -rf Anykernel2/zImage
-rm -rf Anykernel2/dtb
+rm -rf AnyKernel2/zImage
+rm -rf AnyKernel2/dtb
 
