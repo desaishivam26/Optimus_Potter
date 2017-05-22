@@ -816,6 +816,7 @@ void hdd_conf_ns_offload(hdd_adapter_t *pAdapter, int fenable)
         in6_dev = __in6_dev_get(pAdapter->dev);
         if (NULL != in6_dev)
         {
+            read_lock_bh(&in6_dev->lock);
             list_for_each(p, &in6_dev->addr_list)
             {
                 if (i >= slot_index)
@@ -856,6 +857,7 @@ void hdd_conf_ns_offload(hdd_adapter_t *pAdapter, int fenable)
                     i++;
                 }
             }
+            read_unlock_bh(&in6_dev->lock);
 
             vos_mem_zero(&offLoadRequest, sizeof(offLoadRequest));
             for (i =0; i < slot_index; i++)
@@ -1364,7 +1366,7 @@ static void hdd_conf_suspend_ind(hdd_context_t* pHddCtx,
          * function takes care of checking necessary conditions before
          * configuring.
          */
-        wlan_hdd_set_mc_addr_list(pAdapter, TRUE);
+        //wlan_hdd_set_mc_addr_list(pAdapter, TRUE);
 #endif
 
         if( (pHddCtx->cfg_ini->fEnableMCAddrList) && WDA_IS_MCAST_FLT_ENABLE_IN_FW)
@@ -1439,7 +1441,7 @@ static void hdd_conf_resume_ind(hdd_adapter_t *pAdapter)
     /* Filer was applied during suspend inditication
      * clear it when we resume.
      */
-    wlan_hdd_set_mc_addr_list(pAdapter, FALSE);
+    //wlan_hdd_set_mc_addr_list(pAdapter, FALSE);
 #endif
 }
 
@@ -2305,7 +2307,9 @@ VOS_STATUS hdd_wlan_re_init(void)
 
     /* Restart all adapters */
    hdd_start_all_adapters(pHddCtx);
-   pHddCtx->con_scan_abort_cnt = 0;
+   pHddCtx->last_scan_reject_session_id = 0;
+   pHddCtx->last_scan_reject_reason = 0xFF;
+   pHddCtx->last_scan_reject_timestamp = 0;
    pHddCtx->hdd_mcastbcast_filter_set = FALSE;
    pHddCtx->btCoexModeSet = FALSE;
    hdd_register_mcast_bcast_filter(pHddCtx);

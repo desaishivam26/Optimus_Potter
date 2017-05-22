@@ -12831,6 +12831,13 @@ static eHalStatus hdd_cfg80211_scan_done_callback(tHalHandle halHandle,
          aborted = true;
     }
 
+    if (!aborted) {
+        //Begin Mot IKHSS7-28961 : Dont allow sleep so that supplicant
+        // can fetch scan results before kerenel ages it out if slept immediately
+        // and sleep duration is more than the ageout time.
+        hdd_prevent_suspend_after_scan(HZ/4);
+       //END IKHSS7-28961
+    }
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
     if (!iface_down)
 #endif
@@ -12874,7 +12881,8 @@ allow_suspend:
  * Go through each adapter and check if Connection is in progress
  *
  */
-v_BOOL_t hdd_isConnectionInProgress( hdd_context_t *pHddCtx)
+v_BOOL_t hdd_isConnectionInProgress(hdd_context_t *pHddCtx, v_U8_t *session_id,
+                                    scan_reject_states *reason)
 {
     hdd_adapter_list_node_t *pAdapterNode = NULL, *pNext = NULL;
     hdd_station_ctx_t *pHddStaCtx = NULL;
@@ -12904,6 +12912,11 @@ v_BOOL_t hdd_isConnectionInProgress( hdd_context_t *pHddCtx)
                 hddLog(VOS_TRACE_LEVEL_ERROR,
                        "%s: %p(%d) Connection is in progress", __func__,
                        WLAN_HDD_GET_STATION_CTX_PTR(pAdapter), pAdapter->sessionId);
+                if (session_id && reason)
+                {
+                    *session_id = pAdapter->sessionId;
+                    *reason = eHDD_CONNECTION_IN_PROGRESS;
+                }				
                 return VOS_TRUE;
             }
             if ((WLAN_HDD_INFRA_STATION == pAdapter->device_mode) &&
@@ -12912,6 +12925,11 @@ v_BOOL_t hdd_isConnectionInProgress( hdd_context_t *pHddCtx)
                 hddLog(VOS_TRACE_LEVEL_ERROR,
                        "%s: %p(%d) Reassociation is in progress", __func__,
                        WLAN_HDD_GET_STATION_CTX_PTR(pAdapter), pAdapter->sessionId);
+                if (session_id && reason)
+                {
+                    *session_id = pAdapter->sessionId;
+                    *reason = eHDD_REASSOC_IN_PROGRESS;
+                }				
                 return VOS_TRUE;
             }
             if ((WLAN_HDD_INFRA_STATION == pAdapter->device_mode) ||
@@ -12927,6 +12945,11 @@ v_BOOL_t hdd_isConnectionInProgress( hdd_context_t *pHddCtx)
                            "%s: client " MAC_ADDRESS_STR
                            " is in the middle of WPS/EAPOL exchange.", __func__,
                             MAC_ADDR_ARRAY(staMac));
+                    if (session_id && reason)
+                    {
+                        *session_id = pAdapter->sessionId;
+                        *reason = eHDD_EAPOL_IN_PROGRESS;
+                    }					
                     return VOS_TRUE;
                 }
             }
@@ -12952,6 +12975,11 @@ v_BOOL_t hdd_isConnectionInProgress( hdd_context_t *pHddCtx)
                                "%s: client " MAC_ADDRESS_STR " of SoftAP/P2P-GO is in the "
                                "middle of WPS/EAPOL exchange.", __func__,
                                 MAC_ADDR_ARRAY(staMac));
+                        if (session_id && reason)
+                        {
+                            *session_id = pAdapter->sessionId;
+                            *reason = eHDD_SAP_EAPOL_IN_PROGRESS;
+                        }						
                         return VOS_TRUE;
                     }
                 }
@@ -13008,6 +13036,8 @@ int __wlan_hdd_cfg80211_scan( struct wiphy *wiphy,
     int ret = 0;
     v_U8_t *pWpsIe=NULL;
     bool is_p2p_scan = false;
+    v_U8_t curr_session_id;
+    scan_reject_states curr_reason;	
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0))
     struct net_device *dev = NULL;
@@ -13114,20 +13144,40 @@ int __wlan_hdd_cfg80211_scan( struct wiphy *wiphy,
            FL("BTCoex Mode operation in progress"));
         return -EBUSY;
     }
-    if (hdd_isConnectionInProgress(pHddCtx))
+    if (hdd_isConnectionInProgress(pHddCtx, &curr_session_id, &curr_reason))
     {
         hddLog(VOS_TRACE_LEVEL_ERROR, FL("Scan not allowed"));
-        if (SCAN_ABORT_THRESHOLD < pHddCtx->con_scan_abort_cnt) {
-            VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                    FL("Triggering SSR, SSR status = %d"), status);
-            vos_wlanRestart();
+        if (pHddCtx->last_scan_reject_session_id != curr_session_id ||
+            pHddCtx->last_scan_reject_reason != curr_reason ||
+            !pHddCtx->last_scan_reject_timestamp)
+        {
+            pHddCtx->last_scan_reject_session_id = curr_session_id;
+            pHddCtx->last_scan_reject_reason = curr_reason;
+            pHddCtx->last_scan_reject_timestamp = vos_timer_get_system_time();
         }
-        else
-            pHddCtx->con_scan_abort_cnt++;
-
+        else {
+            if ((vos_timer_get_system_time() -
+                 pHddCtx->last_scan_reject_timestamp) >=
+                SCAN_REJECT_THRESHOLD_TIME)
+            {
+                pHddCtx->last_scan_reject_timestamp = 0;
+                if (pHddCtx->cfg_ini->enableFatalEvent)
+                    vos_fatal_event_logs_req(WLAN_LOG_TYPE_FATAL,
+                          WLAN_LOG_INDICATOR_HOST_DRIVER,
+                          WLAN_LOG_REASON_SCAN_NOT_ALLOWED,
+                          FALSE, FALSE);
+                else
+                {
+                    hddLog(LOGE, FL("Triggering SSR"));
+                    vos_wlanRestart();
+                }
+            }
+        }
         return -EBUSY;
     }
-    pHddCtx->con_scan_abort_cnt = 0;
+    pHddCtx->last_scan_reject_timestamp = 0;
+    pHddCtx->last_scan_reject_session_id = 0xFF;
+    pHddCtx->last_scan_reject_reason = 0;
 
     vos_mem_zero( &scanRequest, sizeof(scanRequest));
 
@@ -16966,7 +17016,7 @@ static int __wlan_hdd_cfg80211_sched_scan_start(struct wiphy *wiphy,
     tSirPNOScanReq pnoRequest = {0};
     hdd_context_t *pHddCtx;
     tHalHandle hHal;
-    v_U32_t i, indx, num_ch, tempInterval, j;
+    v_U32_t i, indx, num_ch, j;
     u8 valid_ch[WNI_CFG_VALID_CHANNEL_LIST_LEN] = {0};
     u8 channels_allowed[WNI_CFG_VALID_CHANNEL_LIST_LEN] = {0};
     v_U32_t num_channels_allowed = WNI_CFG_VALID_CHANNEL_LIST_LEN;
@@ -17210,6 +17260,8 @@ static int __wlan_hdd_cfg80211_sched_scan_start(struct wiphy *wiphy,
                 pnoRequest.us5GProbeTemplateLen);
     }
 
+#if 0
+
     /* Driver gets only one time interval which is hardcoded in
      * supplicant for 10000ms. Taking power consumption into account 6 timers
      * will be used, Timervalue is increased exponentially i.e 10,20,40,
@@ -17238,8 +17290,19 @@ static int __wlan_hdd_cfg80211_sched_scan_start(struct wiphy *wiphy,
     }
     //Repeat last timer until pno disabled.
     pnoRequest.scanTimers.aTimerValues[i-1].uTimerRepeat = 0;
+#endif
 
     pnoRequest.modePNO = SIR_PNO_MODE_IMMEDIATE;
+
+    /* framework provides interval in ms */
+    //BEGIN MOT a19110 IKJBMR2-1528 set PNO intervals
+    pnoRequest.scanTimers.ucScanTimersCount = 2;
+    pnoRequest.scanTimers.aTimerValues[0].uTimerRepeat = 7;
+    pnoRequest.scanTimers.aTimerValues[0].uTimerValue = 45;
+    pnoRequest.scanTimers.aTimerValues[1].uTimerRepeat = 0;
+    pnoRequest.scanTimers.aTimerValues[1].uTimerValue = 480;
+    //END IKJBMR2-1528
+
 
     INIT_COMPLETION(pAdapter->pno_comp_var);
     pnoRequest.statusCallback = hdd_cfg80211_sched_scan_start_status_cb;
