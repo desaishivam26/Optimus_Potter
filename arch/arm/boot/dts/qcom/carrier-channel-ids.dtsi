@@ -105,8 +105,8 @@
 		"altfr",	/* 88 */
 		"3ie",	        /* 89 */
 		"altpt",	/* 90 */
-		"timit",	/* 91 */
-		"retma",	/* 92 */
+		"undefined",	/* 91 */
+		"undefined",	/* 92 */
 		"undefined",	/* 93 */
 		"undefined",	/* 94 */
 		"undefined",	/* 95 */
@@ -214,9 +214,9 @@
 		"jioin",	/* 197 */
 		"airin",	/* 198 */
 		"retid",	/* 199 */
-		"cmcc",	/* 200 */
-		"ctcn",	/* 201 */
-		"cucn",	/* 202 */
+		"undefined",	/* 200 */
+		"undefined",	/* 201 */
+		"undefined",	/* 202 */
 		"undefined",	/* 203 */
 		"undefined",	/* 204 */
 		"undefined",	/* 205 */
