@@ -48,7 +48,7 @@
  * workers used for a single input-boost event.
  */
 struct fp_config {
-	struct delayed_work boost_work;
+	struct work_struct boost_work;
 	struct delayed_work unboost_work;
 	uint32_t adj_duration_ms;
 	uint32_t cpus_to_boost;
@@ -203,9 +203,9 @@ static void cpu_fp_input_event(struct input_handle *handle, unsigned int type,
 	touched = true;
 	set_boost_bit(b, FINGERPRINT_BOOST);
 
-	/* Delaying work to ensure all CPUs are online */
-	queue_delayed_work(b->wq, &fp->boost_work,
-				msecs_to_jiffies(20));
+        /* Do not delay boost WQ */
+	queue_work(b->wq, &fp->boost_work);
+				
 }
 
 static int cpu_fp_input_connect(struct input_handler *handler,
@@ -411,7 +411,7 @@ static int __init cpu_fp_init(void)
 
 	spin_lock_init(&b->lock);
 
-	INIT_DELAYED_WORK(&b->fp.boost_work, fp_boost_main);
+	INIT_WORK(&b->fp.boost_work, fp_boost_main);
 	INIT_DELAYED_WORK(&b->fp.unboost_work, fp_unboost_main);
 
 	/* Allow global boost config access */
