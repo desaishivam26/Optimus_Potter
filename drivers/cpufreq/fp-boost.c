@@ -29,11 +29,13 @@
 #include <linux/cpu.h>
 #include <linux/cpufreq.h>
 #include <linux/input.h>
+#include <linux/fb.h>
 #include <linux/slab.h>
 
 /* Available bits for boost_policy state */
 #define DRIVER_ENABLED        (1U << 0)
-#define FINGERPRINT_BOOST           (1U << 1)
+#define SCREEN_AWAKE          (1U << 1)
+#define FINGERPRINT_BOOST     (1U << 2)
 
 /* Fingerprint sensor input key */
 #define FINGERPRINT_KEY 0x2ee
@@ -138,6 +140,53 @@ static struct notifier_block do_cpu_boost_nb = {
 	.notifier_call = do_cpu_boost,
 };
 
+static int fb_notifier_callback(struct notifier_block *nb,
+		unsigned long action, void *data)
+{
+	struct boost_policy *b = boost_policy_g;
+	struct fp_policy *fp = &b->fp;
+	struct fb_event *evdata = data;
+	int *blank = evdata->data;
+	uint32_t state;
+
+	/* Parse framebuffer events as soon as they occur */
+	if (action != FB_EARLY_EVENT_BLANK)
+		return NOTIFY_OK;
+
+	state = get_boost_state(b);
+
+	/* Only boost for unblank (i.e. when the screen turns on) */
+	switch (*blank) {
+	case FB_BLANK_UNBLANK:
+		/* Keep track of screen state */
+		set_boost_bit(b, SCREEN_AWAKE);
+		break;
+	default:
+		/* Unboost CPUs when the screen turns off */
+		if (state & FINGERPRINT_BOOST)
+			unboost_all_cpus(b);
+		clear_boost_bit(b, SCREEN_AWAKE);
+		return NOTIFY_OK;
+	}
+
+	/* Driver is disabled, so don't boost */
+	if (!(state & DRIVER_ENABLED))
+		return NOTIFY_OK;
+
+	/* Framebuffer boost is already in progress */
+	if (state & FINGERPRINT_BOOST)
+		return NOTIFY_OK;
+
+	queue_work(b->wq, &fp->boost_work);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block fb_notifier_callback_nb = {
+	.notifier_call = fb_notifier_callback,
+	.priority      = INT_MAX,
+};
+
 static void cpu_fp_input_event(struct input_handle *handle, unsigned int type,
 		unsigned int code, int value)
 {
@@ -147,7 +196,7 @@ static void cpu_fp_input_event(struct input_handle *handle, unsigned int type,
 
 	state = get_boost_state(b);
 
-	if (!(state & DRIVER_ENABLED) || touched)
+	if (!(state & DRIVER_ENABLED) || !(state & SCREEN_AWAKE) || touched)
 		return;
 
 	pr_info("Recieved input event\n");
@@ -379,6 +428,8 @@ static int __init cpu_fp_init(void)
 		goto input_unregister;
 
 	cpufreq_register_notifier(&do_cpu_boost_nb, CPUFREQ_POLICY_NOTIFIER);
+
+        fb_register_client(&fb_notifier_callback_nb);
 
 	return 0;
 
