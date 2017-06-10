@@ -144,7 +144,7 @@ static int fb_notifier_callback(struct notifier_block *nb,
 		unsigned long action, void *data)
 {
 	struct boost_policy *b = boost_policy_g;
-	struct fp_policy *fp = &b->fp;
+	struct fp_config *fp = &b->fp;
 	struct fb_event *evdata = data;
 	int *blank = evdata->data;
 	uint32_t state;
