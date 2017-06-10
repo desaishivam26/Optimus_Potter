@@ -51,8 +51,8 @@ cp $KERNEL_DIR/arch/arm/boot/dtb $ANY_KERNEL2_DIR/
 echo "**** Time to zip up! ****"
 cd $ANY_KERNEL2_DIR/
 zip -r9 $FINAL_KERNEL_ZIP * -x README $FINAL_KERNEL_ZIP
-rm -rf /home/shivam/$FINAL_KERNEL_ZIP
-cp /home/shivam/kernel-msm/AnyKernel2/$FINAL_KERNEL_ZIP /home/shivam/$FINAL_KERNEL_ZIP
+rm -rf $HOME/Android/Wally/$FINAL_KERNEL_ZIP
+cp $HOME/Android/Wally/kernel-msm/AnyKernel2/$FINAL_KERNEL_ZIP $HOME/Android/Wally/$FINAL_KERNEL_ZIP
 
 echo "**** Good Bye!! ****"
 cd $KERNEL_DIR
