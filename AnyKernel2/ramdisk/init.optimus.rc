@@ -17,6 +17,9 @@ on property:sys.boot_completed=1
     write /sys/devices/system/cpu/cpufreq/optimus/sampling_rate 50000
     chmod 0444 /sys/devices/system/cpu/cpufreq/optimus/sampling_rate
 
+    # Enable Fingerprint boost
+    write /sys/kernel/fp_boost/enabled 1
+
     # Set I/O Scheduler tweaks
     write /sys/block/mmcblk0/queue/read_ahead_kb 512
     write /sys/block/mmcblk0/bdi/min_ratio 5
