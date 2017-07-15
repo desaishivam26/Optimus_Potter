@@ -325,7 +325,6 @@ struct qpnp_hap {
 	struct qpnp_pwm_info pwm_info;
 	struct mutex lock;
 	struct mutex wf_lock;
-	struct mutex set_lock;
 	struct completion completion;
 	enum qpnp_hap_mode play_mode;
 	enum qpnp_hap_auto_res_mode auto_res_mode;
@@ -1379,44 +1378,6 @@ static ssize_t qpnp_hap_ramp_test_data_show(struct device *dev,
 
 }
 
-/* sysfs show for vmax_mv_strong update */
-static ssize_t qpnp_hap_vmax_mv_strong_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct timed_output_dev *timed_dev = dev_get_drvdata(dev);
-	struct qpnp_hap *hap = container_of(timed_dev, struct qpnp_hap,
-					 timed_dev);
-
-	return snprintf(buf, PAGE_SIZE, "%d\n", hap->vmax_mv);
-}
-
-/* sysfs store for vmax_mv_strong */
-static ssize_t qpnp_hap_vmax_mv_strong_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	struct timed_output_dev *timed_dev = dev_get_drvdata(dev);
-	struct qpnp_hap *hap = container_of(timed_dev, struct qpnp_hap,
-					 timed_dev);
-	u32 val;
-	ssize_t ret;
-
-	ret = kstrtou32(buf, 10, &val);
-	if (ret)
-		return ret;
-
-	if ((val < QPNP_HAP_VMAX_MIN_MV) || (val > QPNP_HAP_VMAX_MAX_MV))
-		return -EINVAL;
-
-	mutex_lock(&hap->wf_lock);
-	hap->vmax_mv = val;
-	ret = qpnp_hap_vmax_config(hap);
-	if (ret)
-		pr_err("%s: error setting vmax_mv\n", __func__);
-	mutex_unlock(&hap->wf_lock);
-
-	return count;
-}
-
 /* sysfs attributes */
 static struct device_attribute qpnp_hap_attrs[] = {
 	__ATTR(wf_s0, (S_IRUGO | S_IWUSR | S_IWGRP),
@@ -1464,9 +1425,6 @@ static struct device_attribute qpnp_hap_attrs[] = {
 	__ATTR(min_max_test, (S_IRUGO | S_IWUSR | S_IWGRP),
 			qpnp_hap_min_max_test_data_show,
 			qpnp_hap_min_max_test_data_store),
-	__ATTR(vmax_mv_strong, (S_IRUGO | S_IWUSR | S_IWGRP),
-			qpnp_hap_vmax_mv_strong_show,
-			qpnp_hap_vmax_mv_strong_store),
 };
 
 static int calculate_lra_code(struct qpnp_hap *hap)
@@ -1664,8 +1622,6 @@ static int qpnp_hap_set(struct qpnp_hap *hap, int on)
 	unsigned long timeout_ns = POLL_TIME_AUTO_RES_ERR_NS;
 	u32 back_emf_delay_us = hap->time_required_to_generate_back_emf_us;
 
-	mutex_lock(&hap->set_lock);
-
 	if (hap->play_mode == QPNP_HAP_PWM) {
 		if (on)
 			rc = pwm_enable(hap->pwm_info.pwm_dev);
@@ -1692,10 +1648,8 @@ static int qpnp_hap_set(struct qpnp_hap *hap, int on)
 				qpnp_hap_auto_res_enable(hap, 0);
 
 			rc = qpnp_hap_mod_enable(hap, on);
-			if (rc < 0) {
-				mutex_unlock(&hap->set_lock);
+			if (rc < 0)
 				return rc;
-			}
 
 			rc = qpnp_hap_play(hap, on);
 
@@ -1705,10 +1659,8 @@ static int qpnp_hap_set(struct qpnp_hap *hap, int on)
 				usleep_range(back_emf_delay_us,
 							back_emf_delay_us + 1);
 				rc = qpnp_hap_auto_res_enable(hap, 1);
-				if (rc < 0) {
-					mutex_unlock(&hap->set_lock);
+				if (rc < 0)
 					return rc;
-				}
 			}
 			if (hap->act_type == QPNP_HAP_LRA &&
 						hap->correct_lra_drive_freq) {
@@ -1724,10 +1676,8 @@ static int qpnp_hap_set(struct qpnp_hap *hap, int on)
 			}
 		} else {
 			rc = qpnp_hap_play(hap, on);
-			if (rc < 0) {
-				mutex_unlock(&hap->set_lock);
+			if (rc < 0)
 				return rc;
-			}
 
 			if (hap->act_type == QPNP_HAP_LRA &&
 						hap->correct_lra_drive_freq) {
@@ -1745,7 +1695,6 @@ static int qpnp_hap_set(struct qpnp_hap *hap, int on)
 		}
 	}
 
-	mutex_unlock(&hap->set_lock);
 	return rc;
 }
 
@@ -1754,7 +1703,6 @@ static void qpnp_hap_td_enable(struct timed_output_dev *dev, int value)
 {
 	struct qpnp_hap *hap = container_of(dev, struct qpnp_hap,
 					 timed_dev);
-	flush_work(&hap->work);
 
 	mutex_lock(&hap->lock);
 	pr_debug("%s: duration is %d\n", __func__, value);
@@ -1772,12 +1720,6 @@ static void qpnp_hap_td_enable(struct timed_output_dev *dev, int value)
 		}
 		hap->state = 0;
 	} else {
-
-		if (hap->vmax_mv == QPNP_HAP_VMAX_MIN_MV) {
-			mutex_unlock(&hap->lock);
-			return;
-		}
-
 		value = (value > hap->timeout_ms ?
 				 hap->timeout_ms : value);
 		hap->state = 1;
@@ -1792,15 +1734,7 @@ static void qpnp_hap_td_enable(struct timed_output_dev *dev, int value)
 			      HRTIMER_MODE_REL);
 	}
 	mutex_unlock(&hap->lock);
-	if (hap->play_mode == QPNP_HAP_DIRECT)
-		qpnp_hap_set(hap, hap->state);
-	else
-		schedule_work(&hap->work);
-}
-
-void set_vibrate(int value)
-{
-	qpnp_hap_td_enable(&ghap->timed_dev, value);
+	schedule_work(&hap->work);
 }
 
 /* play pwm bytes */
@@ -2546,7 +2480,6 @@ static int qpnp_haptic_probe(struct spmi_device *spmi)
 
 	mutex_init(&hap->lock);
 	mutex_init(&hap->wf_lock);
-	mutex_init(&hap->set_lock);
 	INIT_WORK(&hap->work, qpnp_hap_worker);
 	INIT_DELAYED_WORK(&hap->sc_work, qpnp_handle_sc_irq);
 	init_completion(&hap->completion);
