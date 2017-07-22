@@ -8,7 +8,7 @@ set -e
 
 ## Copy this script inside the kernel directory
 KERNEL_DIR=$PWD
-KERNEL_TOOLCHAIN=$HOME/x-tools/arm-cortex_a53-linux-gnueabihf/bin/arm-cortex_a53-linux-gnueabihf-
+KERNEL_TOOLCHAIN=$HOME/Android/Wally/gcc/arm-cortex_a53-linux-gnueabihf/bin/arm-eabi-
 KERNEL_DEFCONFIG=potter_defconfig
 DTBTOOL=$KERNEL_DIR/Dtbtool/
 JOBS=8
