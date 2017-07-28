@@ -31,8 +31,12 @@ chmod -R 755 $ramdisk
 dump_boot;
 
 # begin ramdisk changes
-insert_line init.qcom.rc "init.optimus.rc" after "import init.target.rc" "import init.optimus.rc";
-
+insert_line init.qcom.rc "init.optimus.rc" after "import init.mmi.rc" "import init.optimus.rc";
+mount -o ro -t auto /system;
+if [[ -f /system/priv-app/CMParts/CMParts.apk ]]; then
+insert_line init.qcom.rc "init.lineage.rc" after "import init.optimus.rc" "import init.lineage.rc";
+fi;
+unmount /system;
 # end ramdisk changes
 
 write_boot;

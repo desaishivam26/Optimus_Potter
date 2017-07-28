@@ -1,0 +1,12 @@
+on boot
+  # Wake gestures
+  chown root root /sys/android_touch/wake_gestures
+  chmod 666 /sys/android_touch/wake_gestures
+  write /sys/android_touch/wake_gestures 1
+  chmod 644 /sys/android_touch/wake_gestures
+
+  # Sweep2wake
+  chown root root /sys/android_touch/sweep2wake
+  chmod 666 /sys/android_touch/sweep2wake
+  write /sys/android_touch/sweep2wake 1
+  chmod 644 /sys/android_touch/sweep2wake
