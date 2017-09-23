@@ -11416,7 +11416,7 @@ WLAN_TLAPGetNextTxIds
 {
   WLANTL_CbType*  pTLCb;
   v_U8_t          ucACFilter = 1;
-  v_U8_t          ucNextSTA ; 
+  v_U8_t          ucNextSTA = 0; // Motorola IKJB42MAIN-4103, are002, initialization
   v_BOOL_t        isServed = TRUE;  //current round has find a packet or not
   v_U8_t          ucACLoopNum = WLANTL_AC_HIGH_PRIO + 1; //number of loop to go
   v_U8_t          uFlowMask; // TX FlowMask from WDA
@@ -13775,46 +13775,6 @@ WLANTL_GetSTALinkCapacity
     return VOS_STATUS_SUCCESS;
 }/* WLANTL_GetSTALinkCapacity */
 
-/*
- * WLANTL_ResetRxSSN - reset last rx ssn
- * @pvosGCtx: global vos context
- * @ucSTAId: station id
- *
- * This function resets the last ssn of all tids of the station
- * for whom BA reorder session exists.
- *
- * Return: none
- */
-void WLANTL_ResetRxSSN(v_PVOID_t pvosGCtx, uint8_t ucSTAId)
-{
-   WLANTL_CbType*  pTLCb = NULL;
-   WLANTL_STAClientType* pClientSTA = NULL;
-   uint8_t i;
-
-  if (WLANTL_STA_ID_INVALID(ucSTAId)) {
-    TLLOGE(VOS_TRACE( VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_ERROR,
-             "WLAN TL:Invalid station id requested WLANTL_ResetRxSSN"));
-    return;
-  }
-
-  pTLCb = VOS_GET_TL_CB(pvosGCtx);
-  if (NULL == pTLCb) {
-    TLLOGE(VOS_TRACE( VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_ERROR,
-         "WLAN TL:Invalid TL pointer from pvosGCtx WLANTL_ResetRxSSN"));
-    return;
-  }
-
-  pClientSTA = pTLCb->atlSTAClients[ucSTAId];
-
-  for (i = 0; i < WLAN_MAX_TID ; i++) {
-     if (0 == pClientSTA->atlBAReorderInfo[i].ucExists) {
-        continue;
-     }
-     TLLOG1(VOS_TRACE(VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_INFO,
-           "WLAN TL: Last RxSSN reset to zero for tid %d", i));
-     pClientSTA->atlBAReorderInfo[i].LastSN = 0;
-  }
-}
 
 #ifdef WLAN_FEATURE_RMC
 VOS_STATUS WLANTL_RmcInit
@@ -14429,34 +14389,3 @@ WLANTL_SetMcastDuplicateDetection
 }
 
 #endif /* WLAN_FEATURE_RMC */
-
-void WLANTL_SetDataPktFilter(v_PVOID_t pvosGCtx, uint8_t ucSTAId, bool flag)
-{
-   WLANTL_CbType*  pTLCb = NULL;
-   WLANTL_STAClientType* pClientSTA = NULL;
-   uint8_t i;
-
-   if (WLANTL_STA_ID_INVALID(ucSTAId)) {
-      TLLOGE(VOS_TRACE( VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_ERROR,
-            "%s: Invalid station id requested", __func__));
-      return;
-   }
-
-   pTLCb = VOS_GET_TL_CB(pvosGCtx);
-   if (NULL == pTLCb) {
-      TLLOGE(VOS_TRACE( VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_ERROR,
-             "%s: Invalid TL pointer from pvosGCtx", __func__));
-   return;
-   }
-
-   pClientSTA = pTLCb->atlSTAClients[ucSTAId];
-
-   for (i = 0; i < WLAN_MAX_TID ; i++) {
-      if (0 == pClientSTA->atlBAReorderInfo[i].ucExists)
-         continue;
-
-      TLLOG1(VOS_TRACE(VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_INFO,
-            "WLAN TL: Last RxSSN reset to zero for tid %d", i));
-      pClientSTA->atlBAReorderInfo[i].set_data_filter = flag;
-   }
-}

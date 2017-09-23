@@ -3792,7 +3792,6 @@ typedef struct
 typedef void(*FWLoggingInitReqCb)(void *fwlogInitCbContext, tAniLoggingInitRsp *pRsp);
 typedef void ( *tGetFrameLogCallback) (void *pContext);
 typedef void(*RssiMonitorReqCb)(void *rssiMonitorCbContext, VOS_STATUS status);
-typedef void(*pktFilterReqCb)(void *data, tANI_U32 status);
 
 typedef struct sAniGetFrameLogReq
 {
@@ -4205,6 +4204,14 @@ typedef struct sSirRcvPktFilterCfg
   tSirRcvPktFilterFieldParams     paramsData[SIR_MAX_NUM_TESTS_PER_FILTER];
 }tSirRcvPktFilterCfgType, *tpSirRcvPktFilterCfgType;
 
+// IKJB42MAIN-1244, Motorola, a19091 - BEGIN
+typedef struct sSirInvokeV6Filter
+{
+    int (*configureFilterFn)(void *pAdapter, v_U8_t set, v_U8_t userSet);
+    void *pHddAdapter;
+    v_U8_t set;
+}tSirInvokeV6Filter;
+// IKJB42MAIN-1244, Motorola, a19091 - END
 //
 // Filter Packet Match Count Parameters
 //
@@ -4234,8 +4241,6 @@ typedef struct sSirRcvFltPktClearParam
   tANI_U8    filterId;
   tSirMacAddr selfMacAddr;
   tSirMacAddr bssId;
-  pktFilterReqCb     pktFilterCallback;
-  void        *cbCtx;
 }tSirRcvFltPktClearParam, *tpSirRcvFltPktClearParam;
 
 //

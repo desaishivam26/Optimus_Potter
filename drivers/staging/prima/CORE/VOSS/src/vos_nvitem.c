@@ -2614,7 +2614,7 @@ VOS_STATUS vos_nv_getChannelListWithPower(tChannelListWithPower *channels20MHz /
     if( channels20MHz && num20MHzChannelsFound )
     {
         count = 0;
-        for( i = 0; i <= RF_CHAN_14; i++ )
+        for( i = 0; i <= RF_CHAN_13; i++ )
         {
             if( regChannels[i].enabled )
             {
@@ -2820,6 +2820,11 @@ eNVChannelEnabledType vos_nv_getChannelEnabledState
 {
    v_U32_t       channelLoop;
    eRfChannels   channelEnum = INVALID_RF_CHANNEL;
+
+   if(rfChannels[RF_CHAN_14].channelNum == rfChannel)
+   {
+       return NV_CHANNEL_INVALID;
+   }
 
    for(channelLoop = 0; channelLoop <= RF_CHAN_165; channelLoop++)
    {
@@ -3781,7 +3786,12 @@ int vos_update_nv_table_from_wiphy_band(void *hdd_ctx,
         for (j = 0; j < wiphy->bands[i]->n_channels; j++)
         {
              if (IEEE80211_BAND_2GHZ == i && eCSR_BAND_5G == nBandCapability)
-                  wiphy->bands[i]->channels[j].flags |= IEEE80211_CHAN_DISABLED;
+             {
+                 if (WLAN_HDD_IS_SOCIAL_CHANNEL(wiphy->bands[i]->channels[j].center_freq) )
+                     wiphy->bands[i]->channels[j].flags &= ~IEEE80211_CHAN_DISABLED;
+                 else
+                     wiphy->bands[i]->channels[j].flags |= IEEE80211_CHAN_DISABLED;
+             }
              else if (IEEE80211_BAND_5GHZ == i && eCSR_BAND_24 == nBandCapability)
                   wiphy->bands[i]->channels[j].flags |= IEEE80211_CHAN_DISABLED;
 
