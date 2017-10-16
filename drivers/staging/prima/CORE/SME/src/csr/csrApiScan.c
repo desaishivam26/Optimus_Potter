@@ -120,7 +120,6 @@ tCsrIgnoreChannels countryIgnoreList[MAX_COUNTRY_IGNORE] = {
 tCsrIgnoreChannels countryIgnoreList[MAX_COUNTRY_IGNORE] = { };
 #endif //CONFIG_ENABLE_LINUX_REG
 
-#define CSR_IS_SOCIAL_CHANNEL(channel) (((channel) == 1) || ((channel) == 6) || ((channel) == 11) )
 //*** This is temporary work around. It need to call CCM api to get to CFG later
 /// Get string parameter value
 extern tSirRetStatus wlan_cfgGetStr(tpAniSirGlobal, tANI_U16, tANI_U8*, tANI_U32*);
@@ -2281,6 +2280,18 @@ static tANI_S32 csrFindSelfCongestionScore(tpAniSirGlobal pMac,
 
     if (pSession == NULL)
         return -1;
+
+    if (bssInfo->rssi < pMac->roam.configParam.PERMinRssiThresholdForRoam) {
+        smsLog(pMac, LOG1,
+               FL("Current AP has low rssi=%d than %d"), bssInfo->rssi,
+               pMac->roam.configParam.PERMinRssiThresholdForRoam);
+        /*
+         * Make Current candidate score as zero which will cause roaming
+         * in low RSSI scenarios
+         */
+        pMac->currentBssScore = 0;
+        return 0;
+    }
 
     for (i = 0; i <= pMac->PERroamCandidatesCnt; i++)
         if (pMac->candidateChannelInfo[i].channelNumber == bssInfo->channelId)
@@ -6866,9 +6877,7 @@ eHalStatus csrScanCopyRequest(tpAniSirGlobal pMac, tCsrScanRequest *pDstReq, tCs
                             {
                                 if((csrRoamIsValidChannel(pMac,
                                                 pSrcReq->ChannelInfo.
-                                                ChannelList[index])) ||
-                                    ((eCSR_SCAN_P2P_DISCOVERY == pSrcReq->requestType) &&
-				    CSR_IS_SOCIAL_CHANNEL(pSrcReq->ChannelInfo.ChannelList[index])))
+                                                ChannelList[index])))
                                 {
                                     /*Skiipping DFS Channels for 1st scan */
                                     if(NV_CHANNEL_DFS ==
