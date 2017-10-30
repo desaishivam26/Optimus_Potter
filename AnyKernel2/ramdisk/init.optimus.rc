@@ -1,0 +1,23 @@
+# Start Optimus changes
+# Many of these tweaks are thanks to AK, Franco,Nathan Chancellor & frap129.
+
+on early-init
+    write /sys/block/dm-0/queue/scheduler noop
+    write /sys/block/sda/queue/scheduler noop
+    write /sys/block/sde/queue/scheduler noop
+
+    write /sys/block/dm-0/queue/read_ahead_kb 2048
+    write /sys/block/sda/queue/read_ahead_kb 2048
+    write /sys/block/sde/queue/read_ahead_kb 2048
+
+on property:sys.boot_completed=1
+    # I/O
+    write /sys/block/dm-0/queue/rq_affinity 0
+    write /sys/block/sda/queue/rq_affinity 0
+    write /sys/block/sde/queue/rq_affinity 0    
+    write /sys/block/dm-0/queue/read_ahead_kb 128
+    write /sys/block/sda/queue/read_ahead_kb 128
+    write /sys/block/sde/queue/read_ahead_kb 128
+    write /sys/block/dm-0/queue/scheduler bfq
+    write /sys/block/sda/queue/scheduler bfq
+    write /sys/block/sde/queue/scheduler bfq
